@@ -45,6 +45,26 @@ for name, model in models.items():
     print(confusion_matrix(y_test, y_pred))
     print()
 
+accuracies = []
+
+for name, model in models.items():
+    model.fit(X_train, y_train)
+
+    # Förutsäg på testuppsättningen
+    y_pred = model.predict(X_test)
+
+    # Utvärdera modellen
+    accuracy = accuracy_score(y_test, y_pred)
+    accuracies.append(accuracy)
+
+# Plotta noggrannheten för varje modell
+plt.figure(figsize=(10, 6))
+plt.bar(models.keys(), accuracies, color=['blue', 'orange', 'green'])
+plt.xlabel('Modell')
+plt.ylabel('Noggrannhet')
+plt.title('Noggrannhet för olika träningsmodeller')
+plt.ylim(0.9, 1.0)
+plt.show()
 
 # Välj den bästa modellen baserat på valfri utvärderingsmetod, t.ex. högsta noggrannhet
 best_model_name = None
