@@ -12,9 +12,6 @@ from sklearn.neighbors import KNeighborsClassifier
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-if "initialized" not in st.session_state:
-    st.session_state.initialized = True
-    # Här kan du initialisera andra session_state-attribut om det behövs
 
 # Ladda in MNIST-datasetet
 mnist = fetch_openml('mnist_784', version=1, cache=True,
@@ -39,7 +36,6 @@ for name, model in models.items():
 
     # Förutsäg på testuppsättningen
     y_pred = model.predict(X_test)
-
     # Utvärdera modellen
     accuracy = accuracy_score(y_test, y_pred)
     print(f'{name} Accuracy: {accuracy}')
@@ -48,34 +44,6 @@ for name, model in models.items():
     print(f'{name} Confusion Matrix:')
     print(confusion_matrix(y_test, y_pred))
     print()
-
-    # Träningsmodeller
-models = {
-    'Random Forest': RandomForestClassifier(),
-    'SVM': SVC(),
-    'KNN': KNeighborsClassifier()
-}
-
-accuracies = []
-
-for name, model in models.items():
-    model.fit(X_train, y_train)
-
-    # Förutsäg på testuppsättningen
-    y_pred = model.predict(X_test)
-
-    # Utvärdera modellen
-    accuracy = accuracy_score(y_test, y_pred)
-    accuracies.append(accuracy)
-
-# Plotta noggrannheten för varje modell
-plt.figure(figsize=(10, 6))
-plt.bar(models.keys(), accuracies, color=['blue', 'orange', 'green'])
-plt.xlabel('Modell')
-plt.ylabel('Noggrannhet')
-plt.title('Noggrannhet för olika träningsmodeller')
-plt.ylim(0.9, 1.0)
-plt.show()
 
 
 # Välj den bästa modellen baserat på valfri utvärderingsmetod, t.ex. högsta noggrannhet
@@ -120,23 +88,29 @@ class VideoTransformer(VideoTransformerBase):
         return img
 
 
+if "initialized" not in st.session_state:
+    st.session_state.initialized = True
+    # Här kan du initialisera andra session_state-attribut om det behövs
+
+
 def main():
     st.title('Handwritten Digit Recognition')
 
     # Navigation option
     nav_option = st.sidebar.radio(
-        "Navigation", ["Take Photo", "Upload Image"])
+        "Navigation", ["Take Photo", "Upload Image", "The Best Model"])
 
     if nav_option == "Take Photo":
         st.write("Take Photo option selected")
 
         # Initialize the webcam
         webrtc_ctx = webrtc_streamer(
-            key="example", video_transformer_factory=VideoTransformer)
+            key="example", video_processor_factory=VideoTransformer)
 
         # Capture and process the image
         if webrtc_ctx.video_transformer:
-            img = webrtc_ctx.video_transformer.get_frame()
+            img = webrtc_ctx.video_transformer.transform(
+                webrtc_ctx.video_frame)
 
             # Process the image
             if img is not None:
@@ -145,24 +119,6 @@ def main():
 
                 # Display the captured image
                 st.image(img, caption='Captured Image', use_column_width=True)
-
-        def preprocess_image(image):
-            # Convert the image to grayscale
-            gray = image.convert('L')
-            # Resize the image to 28x28 pixels
-            resized = gray.resize((28, 28))
-            # Convert image to array and normalize
-            image_array = np.array(resized) / 255.0
-            # Flatten the array
-            flattened_array = image_array.flatten()
-            # Reshape to match model input shape
-            reshaped_array = flattened_array.reshape(1, -1)
-            return reshaped_array
-
-        def predict_image(image):
-            processed_image = preprocess_image(image)
-            prediction = model.predict(processed_image)
-            return prediction[0]
 
     elif nav_option == "Upload Image":
         # Option to upload image
@@ -173,27 +129,6 @@ def main():
             # Display the uploaded image
             image = Image.open(uploaded_file)
             st.image(image, caption='Uploaded Image', use_column_width=True)
-
-            # Preprocess the image
-            processed_image = np.array(image)
-
-            def preprocess_image(image):
-                # Convert the image to grayscale
-                gray = image.convert('L')
-                # Resize the image to 28x28 pixels
-                resized = gray.resize((28, 28))
-                # Convert image to array and normalize
-                image_array = np.array(resized) / 255.0
-                # Flatten the array
-                flattened_array = image_array.flatten()
-                # Reshape to match model input shape
-                reshaped_array = flattened_array.reshape(1, -1)
-                return reshaped_array
-
-            def predict_image(image):
-                processed_image = preprocess_image(image)
-                prediction = model.predict(processed_image)
-                return prediction[0]
 
     elif nav_option == "The Best Model":
         st.write(f"Best Model: {best_model_name}")
@@ -207,5 +142,4 @@ def main():
         st.write(f"Confusion Matrix: {conf_matrix}")
 
 
-if __name__ == "__main__":
-    main()
+# End
