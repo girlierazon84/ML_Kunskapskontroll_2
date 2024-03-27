@@ -13,30 +13,33 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-# Ladda in MNIST-datasetet
+# Initialize session state
+if "initialized" not in st.session_state:
+    st.session_state.initialized = True
+    # Here you can initialize other session_state attributes if needed
+
+# Load a subset of the MNIST dataset
 mnist = fetch_openml('mnist_784', version=1, cache=True,
                      as_frame=False, parser='auto')
 
-X = mnist["data"]
-y = mnist["target"].astype(np.uint8)
+X = mnist["data"][:10000]  # Use a subset of the data for faster prototyping
+y = mnist["target"].astype(np.uint8)[:10000]
 
-# Dela upp datan i tränings- och testuppsättningar
+# Split the data into training and test sets
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42)
 
-# Träningsmodeller
+# Define the machine learning models
 models = {
     'Random Forest': RandomForestClassifier(),
     'SVM': SVC(),
     'KNN': KNeighborsClassifier()
 }
 
+# Train and evaluate each model
 for name, model in models.items():
     model.fit(X_train, y_train)
-
-    # Förutsäg på testuppsättningen
     y_pred = model.predict(X_test)
-    # Utvärdera modellen
     accuracy = accuracy_score(y_test, y_pred)
     print(f'{name} Accuracy: {accuracy}')
     print(f'{name} Classification Report:\n{
@@ -45,41 +48,24 @@ for name, model in models.items():
     print(confusion_matrix(y_test, y_pred))
     print()
 
-accuracies = []
+# Plot the accuracies of the models
+accuracies = [accuracy_score(y_test, model.predict(X_test))
+              for model in models.values()]
 
-for name, model in models.items():
-    model.fit(X_train, y_train)
-
-    # Förutsäg på testuppsättningen
-    y_pred = model.predict(X_test)
-
-    # Utvärdera modellen
-    accuracy = accuracy_score(y_test, y_pred)
-    accuracies.append(accuracy)
-
-# Plotta noggrannheten för varje modell
 plt.figure(figsize=(10, 6))
 plt.bar(models.keys(), accuracies, color=['blue', 'orange', 'green'])
-plt.xlabel('Modell')
-plt.ylabel('Noggrannhet')
-plt.title('Noggrannhet för olika träningsmodeller')
+plt.xlabel('Model')
+plt.ylabel('Accuracy')
+plt.title('Accuracy of Different Models')
 plt.ylim(0.9, 1.0)
 plt.show()
 
-# Välj den bästa modellen baserat på valfri utvärderingsmetod, t.ex. högsta noggrannhet
-best_model_name = None
-best_accuracy = 0
+# Choose the best model based on the highest accuracy
+best_model_name = max(models, key=lambda x: accuracy_score(
+    y_test, models[x].predict(X_test)))
+best_model = models[best_model_name]
 
-for name, model in models.items():
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    if accuracy > best_accuracy:
-        best_model_name = name
-        best_model = model
-        best_accuracy = accuracy
-
-print(best_model_name)
-# Visa eller plotta förvirringsmatrisen för den bästa modellen
+# Plot the confusion matrix for the best model
 y_pred_best = best_model.predict(X_test)
 cm = confusion_matrix(y_test, y_pred_best)
 
@@ -91,16 +77,6 @@ plt.title(f'Confusion Matrix for Best Model ({best_model_name})')
 plt.show()
 
 
-# =============================================================================
-# Streamlit HDR_app.py code
-# =============================================================================
-
-
-# Train SVM model
-model = SVC()
-model.fit(X_train, y_train)
-
-
 # Define a class to process the webcam video stream
 class VideoTransformer(VideoTransformerBase):
     def transform(self, frame):
@@ -108,58 +84,49 @@ class VideoTransformer(VideoTransformerBase):
         return img
 
 
-if "initialized" not in st.session_state:
-    st.session_state.initialized = True
-    # Här kan du initialisera andra session_state-attribut om det behövs
+# Initialize Streamlit app
+st.title('Handwritten Digit Recognition')
 
+# Navigation options
+nav_option = st.sidebar.radio(
+    "Navigation", ["Take Photo", "Upload Image", "The Best Model"])
 
-def main():
-    st.title('Handwritten Digit Recognition')
+if nav_option == "Take Photo":
+    st.write("Take Photo option selected")
 
-    # Navigation option
-    nav_option = st.sidebar.radio(
-        "Navigation", ["Take Photo", "Upload Image", "The Best Model"])
+    # Initialize the webcam
+    webrtc_ctx = webrtc_streamer(
+        key="example", video_processor_factory=VideoTransformer)
 
-    if nav_option == "Take Photo":
-        st.write("Take Photo option selected")
+    # Capture and process the image
+    if webrtc_ctx.video_transformer:
+        img = webrtc_ctx.video_transformer.transform(
+            webrtc_ctx.video_frame)
 
-        # Initialize the webcam
-        webrtc_ctx = webrtc_streamer(
-            key="example", video_processor_factory=VideoTransformer)
+        # Process the image
+        if img is not None:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(img)
 
-        # Capture and process the image
-        if webrtc_ctx.video_transformer:
-            img = webrtc_ctx.video_transformer.transform(
-                webrtc_ctx.video_frame)
+            # Display the captured image
+            st.image(img, caption='Captured Image', use_column_width=True)
 
-            # Process the image
-            if img is not None:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(img)
+elif nav_option == "Upload Image":
+    # Option to upload image
+    uploaded_file = st.file_uploader(
+        "Choose an image...", type=["jpg", "jpeg", "png"])
 
-                # Display the captured image
-                st.image(img, caption='Captured Image', use_column_width=True)
+    if uploaded_file is not None:
+        # Display the uploaded image
+        image = Image.open(uploaded_file)
+        st.image(image, caption='Uploaded Image', use_column_width=True)
 
-    elif nav_option == "Upload Image":
-        # Option to upload image
-        uploaded_file = st.file_uploader(
-            "Choose an image...", type=["jpg", "jpeg", "png"])
+elif nav_option == "The Best Model":
+    st.write(f"Best Model: {best_model_name}")
+    y_pred = best_model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    classification_rep = classification_report(y_test, y_pred)
+    conf_matrix = confusion_matrix(y_test, y_pred)
 
-        if uploaded_file is not None:
-            # Display the uploaded image
-            image = Image.open(uploaded_file)
-            st.image(image, caption='Uploaded Image', use_column_width=True)
-
-    elif nav_option == "The Best Model":
-        st.write(f"Best Model: {best_model_name}")
-        y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        classification_rep = classification_report(y_test, y_pred)
-        conf_matrix = confusion_matrix(y_test, y_pred)
-
-        st.write(f"Accuracy on test data: {accuracy}")
-        st.write(f"Classification Report: {classification_rep}")
-        st.write(f"Confusion Matrix: {conf_matrix}")
-
-
-# End
+    st.write(f"Accuracy on test data: {accuracy}")
+    st.write(f"Classification Report: {classification_rep}")
